@@ -10,19 +10,39 @@ function App() {
   const [weather, setWeather] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [locationOptions, setLocationOptions] = useState([]);
 
   const handleSearch = async (event) => {
     event.preventDefault();
-
-    const response = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1`
-    );
-    const data = await response.json();
-
-    if (data.results?.length) {
-      setLocation(data.results[0]);
-      localStorage.setItem("lastCity", data.results[0].name);
+    setError(null);
+    setIsLoading(true);
+    setLocation(null);
+    setWeather(null);
+    setLocationOptions([]);
+    try {
+      const response = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=5`
+      );
+      const data = await response.json();
+      if (data.results?.length) {
+        setLocationOptions(data.results);
+      } else {
+        setError("Location not found. Try a different search.");
+      }
+    } catch (err) {
+      setError("Failed to fetch location data.");
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleSelectLocation = (e) => {
+    const idx = e.target.value;
+    const selected = locationOptions[idx];
+    setLocation(selected);
+    setLocationOptions([]);
+    setCity([selected.name, selected.admin1, selected.country].filter(Boolean).join(", "));
+    localStorage.setItem("lastCity", [selected.name, selected.admin1, selected.country].filter(Boolean).join(", "));
   };
 
   useEffect(() => {
@@ -72,6 +92,27 @@ function App() {
           setCity={setCity}
           onSearch={handleSearch}
         />
+
+        {/* Location selection dropdown */}
+        {locationOptions.length > 0 && (
+          <div className="mb-4">
+            <label className="block mb-2 text-gray-700 font-medium">Select a location:</label>
+            <select
+              className="w-full p-2 border rounded-lg"
+              onChange={handleSelectLocation}
+              defaultValue=""
+            >
+              <option value="" disabled>
+                -- Choose a location --
+              </option>
+              {locationOptions.map((loc, idx) => (
+                <option key={loc.id || idx} value={idx}>
+                  {[loc.name, loc.admin1, loc.admin2, loc.country].filter(Boolean).join(", ")}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {isLoading && <LoadingSpinner />}
         <ErrorMessage message={error} />
